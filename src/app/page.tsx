@@ -1,8 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import type { DesignTokens } from "@/lib/schema";
-import type { HeroDesign } from "@/lib/heroSchema";
+import type { DesignTokens, HeroDesign } from "@/lib/getDesign";
 
 const STORAGE_KEY = "openai_api_key";
 
