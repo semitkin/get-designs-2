@@ -1,11 +1,12 @@
 /**
- * getDesign — self-contained library for brand design extraction and banner generation.
+ * Design analysis service — extracts brand design tokens and generates banner HTML
+ * using OpenAI GPT-4o vision/analysis.
  *
- * Dependencies: openai (npm install openai)
- * No framework dependencies — works in any TypeScript project.
+ * Adapted from test-get-design/getDesign.ts for backend integration.
  */
 
 import OpenAI from "openai";
+import { OPENAI_API_KEY } from "../config/env";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -49,6 +50,12 @@ export interface HeroDesign {
   dominantColors: string[];
 }
 
+export interface DesignAnalysisResult {
+  tokens: DesignTokens;
+  heroDesign: HeroDesign;
+  bannerHtml: string;
+}
+
 // ---------------------------------------------------------------------------
 // Validation
 // ---------------------------------------------------------------------------
@@ -84,8 +91,10 @@ function validateHeroDesign(data: unknown): data is HeroDesign {
   for (const f of ["headline", "subheadline", "ctaText", "ctaColor", "backgroundColor", "layout", "imageDescription"]) {
     if (typeof hero[f] !== "string") return false;
   }
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hero.ctaColor as string)) return false;
-  if (!/^#[0-9A-Fa-f]{6}$/.test(hero.backgroundColor as string)) return false;
+  // Allow empty string when model couldn't extract a color
+  const hexOrEmpty = /^(#[0-9A-Fa-f]{6})?$/;
+  if (!hexOrEmpty.test(hero.ctaColor as string)) return false;
+  if (!hexOrEmpty.test(hero.backgroundColor as string)) return false;
 
   if (!Array.isArray(obj.taglines)) return false;
 
@@ -98,7 +107,7 @@ function validateHeroDesign(data: unknown): data is HeroDesign {
 
   if (!Array.isArray(obj.dominantColors)) return false;
   for (const c of obj.dominantColors) {
-    if (typeof c !== "string" || !/^#[0-9A-Fa-f]{6}$/.test(c)) return false;
+    if (typeof c !== "string" || !hexOrEmpty.test(c)) return false;
   }
 
   return true;
@@ -304,217 +313,106 @@ ${schemaStr}`;
 }
 
 function buildBannerPrompt(heroDesign: HeroDesign, designTokens: DesignTokens | null): string {
-  const heroJson = JSON.stringify(heroDesign, null, 2);
-  const tokensSection = designTokens
-    ? `\nCOLOR DESIGN TOKENS (semantic palette extracted from the brand):\n${JSON.stringify(designTokens, null, 2)}\n`
-    : "";
+  const brandName = heroDesign.logo.description || "the brand";
+  const primaryColor = designTokens?.primary?.value || heroDesign.hero.backgroundColor || heroDesign.dominantColors?.[0] || "#2D2066";
+  const secondaryColor = designTokens?.secondary?.value || heroDesign.hero.ctaColor || "#FFFFFF";
+  const accentColor = designTokens?.warning?.value || heroDesign.dominantColors?.[1] || "#FFD700";
+  const bgColor = heroDesign.hero.backgroundColor || primaryColor;
+  const ctaColor = heroDesign.hero.ctaColor || accentColor;
+  const headline = heroDesign.hero.headline || "The Perfect Gift";
+  const subheadline = heroDesign.hero.subheadline || "";
+  const ctaText = heroDesign.hero.ctaText || "Shop Gift Cards";
+  const fontHint = heroDesign.typography.primaryFont || "system sans-serif";
+  const headingStyle = heroDesign.typography.headingStyle || "bold clean";
+  const mood = heroDesign.visualStyle || "modern premium";
+  const taglines = heroDesign.taglines.length > 0 ? heroDesign.taglines.map(t => `  - "${t}"`).join("\n") : "  (none)";
+  const dominantColors = heroDesign.dominantColors.length > 0 ? heroDesign.dominantColors.join(", ") : bgColor;
 
-  const brandTaglines = heroDesign.taglines.length > 0
-    ? heroDesign.taglines.map(t => `  - "${t}"`).join("\n")
-    : "  (none extracted)";
-  const heroHeadline = heroDesign.hero.headline || "(none extracted)";
-  const heroSubheadline = heroDesign.hero.subheadline || "(none extracted)";
-  const logoDescription = heroDesign.logo.description || "(none extracted)";
-  const visualStyle = heroDesign.visualStyle || "(none extracted)";
+  return `You are a world-class front-end designer. Generate a self-contained HTML+CSS hero banner snippet.
 
-  return `You are a world-class front-end designer specializing in high-converting e-commerce hero banners.
+BRAND: ${brandName}
+MOOD: ${mood}
+FONT: ${fontHint} / ${headingStyle}
 
-Your task: Generate a single self-contained HTML+CSS snippet for a gift card marketplace homepage hero banner. This banner will be injected into an existing website, so it must be fully isolated and must not break anything on the host page.
+EXACT COLORS TO USE:
+  background: ${bgColor}
+  headline text: #FFFFFF
+  bullet text: rgba(255,255,255,0.85)
+  CTA button bg: ${ctaColor}
+  CTA button text: #FFFFFF
+  accent / decorative: ${accentColor}
+  secondary: ${secondaryColor}
+  dominant palette: ${dominantColors}
 
----
+COPY:
+  Headline (adapt for gift cards): "${headline}"
+  Subheadline: "${subheadline}"
+  Brand taglines:
+${taglines}
+  CTA button text: "${ctaText}" or "Shop ${brandName} Gift Cards"
+  Write 2-3 short benefit bullets with ✓ marks specific to this brand
 
-BRAND CONTEXT (extracted from the brand's website):
-${heroJson}
-${tokensSection}
----
+LAYOUT:
+  Left ~55%: headline (2-3 bold lines), bullets, CTA button
+  Right ~40%: CSS-only decorative box (rounded rect, gift card shapes, or bold "GIFT" typography)
+  The right box sits ON TOP of the background (position: absolute), not beside it
 
-WHAT TO BUILD:
-A visually striking, brand-faithful, full-width hero banner for a gift card marketplace homepage.
-- Evokes the brand's identity — colors, typography, visual style
-- Sells gift cards with compelling, brand-specific copy
-- Has ONE call-to-action button (see CTA BUTTON rules)
-- Contains NO other links, no external images, no iframes
+STRICT CSS RULES:
+  .gc-hero { width:100%; height:350px; overflow:hidden; position:relative; background: ${bgColor}; display:flex; align-items:center; font-family:'${fontHint}',sans-serif; }
+  @media(max-width:767px) { .gc-hero{height:220px} .gc-hero__right{display:none} }
+  ALL selectors must start with .gc-hero (BEM: .gc-hero__headline, .gc-hero__btn, .gc-hero__right, etc.)
+  NEVER use body, html, *, :root, or !important
+  Use clamp() for all font-sizes
+  The CTA <a> must have: onclick="window.scrollBy({top:300,behavior:'smooth'});return false;" and cursor:pointer
+  NO @keyframes, NO animation, NO transition — completely static
 
-NO ANIMATIONS: Do NOT use @keyframes, animation, or transition properties anywhere. Completely static.
-
-COPY RULES:
-The following text was extracted directly from this brand's website — USE IT:
-
-  Brand logo / name clue: ${logoDescription}
-  Original hero headline: ${heroHeadline}
-  Original hero subheadline: ${heroSubheadline}
-  Brand taglines / mottos:
-${brandTaglines}
-  Visual style / mood: ${visualStyle}
-
-Instructions:
-- Determine the brand name from the logo description or headline above
-- The banner headline MUST reference this specific brand — include the brand name or a direct echo of their actual tagline/headline. Do not write generic copy.
-- Headline must be 2–3 lines, large, bold. It should feel like it was written by that brand's own marketing team — for gift cards.
-- Write 2–3 short benefit bullets (✓) that feel specific to this brand and its customers (draw from the taglines, visual style, and brand voice above)
-- The CTA button label should be action-oriented and brand-relevant (e.g. "Shop [BrandName] Gift Cards")
-
-FONT SIZING — CALCULATE BEFORE WRITING CSS:
-Before setting any font-size, count the total characters in your banner headline (including spaces and line breaks):
-- Headline total chars ≤ 30 → headline clamp: (22px, 3.0vw, 42px)
-- Headline total chars 31–50 → headline clamp: (20px, 2.6vw, 36px)
-- Headline total chars 51–70 → headline clamp: (16px, 2.0vw, 28px)
-- Headline total chars > 70 → headline clamp: (13px, 1.6vw, 22px)
-Bullets: clamp at ~70% of headline max (e.g. if headline max is 36px, bullets max ≈ 25px).
-CTA button: clamp at ~65% of headline max.
-The goal: ALL content (headline on 2–3 lines, 3 bullets, CTA button) must fit within the 350px banner height with no overflow. When in doubt, choose the next tier down.
-
-LAYOUT — FOLLOW EXACTLY (do not center the text):
-The banner uses a LEFT TEXT + RIGHT DECORATIVE BOX layout:
-
-Left column (~55% width): contains the text group
-- Brand headline (2–3 lines, large bold)
-- 2–3 benefit bullets with ✓ checkmarks
-- CTA button
-
-Right column: a visually rich CONTAINED BOX positioned absolutely on the right side
-- This box floats ON TOP of the background — it does NOT split the background
-- Shape: rounded rectangle (border-radius: 16px) or overlapping circles
-- Fill: a lighter or contrasting brand color (not the same as the background)
-- Inside the box: creative CSS-only decoration — choose ONE of:
-  a) A large bold typographic element (e.g. "GIFT", a big "$", or a price like "from $10") in a contrasting color
-  b) 2–3 stacked/overlapping CSS rectangles styled like gift cards (rounded, border, slight rotation)
-  c) A large outlined circle with a brand-relevant symbol or number inside
-
-VISUAL STYLE:
-- Background: brand's primary/dominant color, can use a subtle radial or linear gradient
-- Typography: use the brand's font if it's a standard Google Font (load via <link>); otherwise use a clean system sans-serif
-- The CTA button must match the brand's button style: color = brand CTA color, border-radius matching brand style
-- Text on the left must have enough contrast against the background
-
-CTA BUTTON (CRITICAL — follow exactly):
-- Must be an <a> tag with this exact onclick:
-  onclick="window.scrollBy({top:300,behavior:'smooth'});return false;"
-- Do NOT use href="#products" or any other href
-- Add cursor: pointer to its CSS
-
-ISOLATION RULES (CRITICAL):
-- Single root element: <div class="gc-hero">
-- ALL CSS inside a <style> tag at the top of the snippet
-- Every selector MUST start with .gc-hero — e.g. .gc-hero__headline, .gc-hero__btn
-- NEVER use: body, html, *, :root, or any global selector
-- NEVER use !important
-- Fonts: load via <link rel="stylesheet"> embedded in the snippet
-
-SIZE — FOLLOW EXACTLY:
-- Desktop: width: 100%; height: 350px; overflow: hidden
-- Inner content: display: flex; align-items: center; height: 100% — no top/bottom padding on .gc-hero
-- Font sizes: use clamp()
-
-MOBILE RESPONSIVENESS (CRITICAL):
-The @media block MUST be the very last rule inside the <style> tag — after ALL base styles.
-If it appears before any base rule (e.g. .gc-hero__left), that base rule will override it and mobile will break.
-
-Required @media block (place it last):
-@media (max-width: 767px) {
-  .gc-hero { height: 220px; }
-  .gc-hero__right { display: none; }
-  .gc-hero__left { width: 100%; padding-right: 7%; }
-}
-
-Do not omit any of these three declarations. Do not move this block above any base styles.
-
-OUTPUT FORMAT (STRICT):
-- Return ONLY the raw HTML — no markdown fences, no explanation
-- Start with <link> (if font) or <style>
-
-EXAMPLE STRUCTURE (illustrates the layout pattern — adapt everything to the brand):
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;400&display=swap">
-<style>
-  .gc-hero {
-    width: 100%; height: 350px; overflow: hidden; position: relative;
-    background: #5B2D8E; display: flex; align-items: center;
-    font-family: 'Montserrat', sans-serif;
-  }
-  .gc-hero__left {
-    width: 55%; padding-left: 7%; display: flex; flex-direction: column;
-    justify-content: center; gap: 12px; position: relative; z-index: 2;
-  }
-  .gc-hero__headline {
-    /* Example headline "Give the Gift They Actually Want" = 33 chars → tier 31–50 → max 36px */
-    font-size: clamp(20px, 2.6vw, 36px); font-weight: 700;
-    color: #fff; line-height: 1.2; margin: 0;
-  }
-  .gc-hero__bullets {
-    list-style: none; margin: 0; padding: 0;
-    display: flex; flex-direction: column; gap: 5px;
-  }
-  .gc-hero__bullets li {
-    /* bullets ~70% of 36px max → ~25px max */
-    font-size: clamp(13px, 1.5vw, 22px); color: rgba(255,255,255,0.9);
-  }
-  .gc-hero__bullets li::before { content: "✓ "; font-weight: 700; }
-  .gc-hero__btn {
-    display: inline-block; margin-top: 4px;
-    background: #FFD700; color: #2D0060;
-    padding: 11px 26px; border-radius: 50px;
-    /* CTA ~65% of 36px max → ~23px max */
-    font-size: clamp(12px, 1.4vw, 22px); font-weight: 700;
-    text-decoration: none; cursor: pointer; align-self: flex-start;
-  }
-  .gc-hero__right {
-    position: absolute; right: 4%; top: 50%; transform: translateY(-50%);
-    width: 34%; height: 82%; border-radius: 16px;
-    background: rgba(255,255,255,0.15);
-    display: flex; align-items: center; justify-content: center;
-    overflow: hidden;
-  }
-  .gc-hero__right-inner {
-    font-size: clamp(60px, 8vw, 110px); font-weight: 900;
-    color: rgba(255,255,255,0.25); line-height: 1; text-align: center;
-    letter-spacing: -2px;
-  }
-  /* @media MUST be last — after all base styles */
-  @media (max-width: 767px) {
-    .gc-hero { height: 220px; }
-    .gc-hero__right { display: none; }
-    .gc-hero__left { width: 100%; padding-right: 7%; }
-  }
-</style>
-<div class="gc-hero">
-  <div class="gc-hero__left">
-    <h2 class="gc-hero__headline">Give the Gift<br>They Actually Want</h2>
-    <ul class="gc-hero__bullets">
-      <li>Delivered instantly by email or print</li>
-      <li>Choose any amount, any occasion</li>
-      <li>Redeemable in-store and online</li>
-    </ul>
-    <a class="gc-hero__btn" onclick="window.scrollBy({top:300,behavior:'smooth'});return false;">Shop Gift Cards</a>
-  </div>
-  <div class="gc-hero__right">
-    <div class="gc-hero__right-inner">GIFT</div>
-  </div>
-</div>`;
+OUTPUT:
+  Return ONLY raw HTML starting with <style> then <div class="gc-hero">
+  No markdown fences, no explanation, no wrapping
+  The <style> block goes FIRST, then the HTML`;
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
+function getOpenAIClient(): OpenAI {
+  if (!OPENAI_API_KEY) {
+    throw new Error("OPENAI_API_KEY is not configured");
+  }
+  return new OpenAI({ apiKey: OPENAI_API_KEY });
+}
+
 /**
- * Extract 7 semantic brand color tokens from a website URL.
+ * Helper to extract text from a Responses API result.
  */
-export async function extractColorTokens(
-  url: string,
-  openaiApiKey: string
-): Promise<DesignTokens> {
-  const openai = new OpenAI({ apiKey: openaiApiKey });
+function extractResponseText(response: any): string {
+  // response.output is an array of output items
+  for (const item of response.output ?? []) {
+    if (item.type === "message" && Array.isArray(item.content)) {
+      for (const block of item.content) {
+        if (block.type === "output_text" && block.text) return block.text;
+      }
+    }
+  }
+  // Fallback: try output_text at top level
+  if (response.output_text) return response.output_text;
+  return "";
+}
+
+export async function extractColorTokens(url: string): Promise<DesignTokens> {
+  const client = getOpenAIClient();
   const prompt = buildColorTokensPrompt(url);
 
   let raw: string;
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      messages: [{ role: "user", content: prompt }],
+    const response = await client.responses.create({
+      model: "gpt-5.4",
+      input: prompt,
       temperature: 0.2,
+      text: { format: { type: "json_object" } },
     });
-    raw = completion.choices[0]?.message?.content ?? "";
+    raw = extractResponseText(response);
   } catch (err: unknown) {
     throw new Error(`OpenAI request failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -533,25 +431,19 @@ export async function extractColorTokens(
   return parsed;
 }
 
-/**
- * Extract hero design elements (headline, CTA, colors, typography, etc.) from a website URL.
- */
-export async function extractHeroDesign(
-  url: string,
-  openaiApiKey: string
-): Promise<HeroDesign> {
-  const openai = new OpenAI({ apiKey: openaiApiKey });
+export async function extractHeroDesign(url: string): Promise<HeroDesign> {
+  const client = getOpenAIClient();
   const prompt = buildHeroDesignPrompt(url);
 
   let raw: string;
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      response_format: { type: "json_object" },
-      messages: [{ role: "user", content: prompt }],
+    const response = await client.responses.create({
+      model: "gpt-5.4",
+      input: prompt,
       temperature: 0.3,
+      text: { format: { type: "json_object" } },
     });
-    raw = completion.choices[0]?.message?.content ?? "";
+    raw = extractResponseText(response);
   } catch (err: unknown) {
     throw new Error(`OpenAI request failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -570,31 +462,26 @@ export async function extractHeroDesign(
   return parsed;
 }
 
-/**
- * Generate an isolated HTML+CSS gift card hero banner based on extracted brand data.
- * designTokens is optional — pass it for better color fidelity.
- */
 export async function generateBannerHtml(
   heroDesign: HeroDesign,
-  openaiApiKey: string,
   designTokens?: DesignTokens
 ): Promise<string> {
-  const openai = new OpenAI({ apiKey: openaiApiKey });
+  const client = getOpenAIClient();
   const prompt = buildBannerPrompt(heroDesign, designTokens ?? null);
 
   let html: string;
   try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.7,
+    const response = await client.responses.create({
+      model: "gpt-5.4",
+      input: prompt,
+      temperature: 0.6,
     });
-    html = completion.choices[0]?.message?.content ?? "";
+    html = extractResponseText(response);
   } catch (err: unknown) {
     throw new Error(`OpenAI request failed: ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  // Strip markdown code fences if the model wrapped the output anyway
+  // Strip markdown code fences if the model wrapped the output
   html = html
     .replace(/^```(?:html)?\s*/i, "")
     .replace(/\s*```\s*$/i, "")
@@ -605,4 +492,18 @@ export async function generateBannerHtml(
   }
 
   return html;
+}
+
+/**
+ * Full pipeline: extract tokens + hero in parallel, then generate banner.
+ */
+export async function analyzeWebsite(url: string): Promise<DesignAnalysisResult> {
+  const [tokens, heroDesign] = await Promise.all([
+    extractColorTokens(url),
+    extractHeroDesign(url),
+  ]);
+
+  const bannerHtml = await generateBannerHtml(heroDesign, tokens);
+
+  return { tokens, heroDesign, bannerHtml };
 }

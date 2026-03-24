@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { extractHeroDesign } from "@/lib/getDesign";
 
 export async function POST(req: NextRequest) {
-  const apiKey =
-    req.headers.get("X-OpenAI-Key")?.trim() || process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "No OpenAI API key provided. Open Settings and add your key." },
-      { status: 401 }
-    );
-  }
-
   let url: string;
   try {
     const body = await req.json();
@@ -24,7 +14,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const heroDesign = await extractHeroDesign(url, apiKey);
+    const heroDesign = await extractHeroDesign(url);
     return NextResponse.json({ heroDesign });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Request failed.";

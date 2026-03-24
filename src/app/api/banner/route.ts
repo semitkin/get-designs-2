@@ -3,16 +3,6 @@ import { generateBannerHtml } from "@/lib/getDesign";
 import type { HeroDesign, DesignTokens } from "@/lib/getDesign";
 
 export async function POST(req: NextRequest) {
-  const apiKey =
-    req.headers.get("X-OpenAI-Key")?.trim() || process.env.OPENAI_API_KEY;
-
-  if (!apiKey) {
-    return NextResponse.json(
-      { error: "No OpenAI API key provided. Open Settings and add your key." },
-      { status: 401 }
-    );
-  }
-
   let heroDesign: HeroDesign;
   let designTokens: DesignTokens | undefined;
   try {
@@ -27,7 +17,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const html = await generateBannerHtml(heroDesign, apiKey, designTokens);
+    const html = await generateBannerHtml(heroDesign, designTokens);
     return NextResponse.json({ html });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Request failed.";

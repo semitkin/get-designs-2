@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import type { DesignTokens, HeroDesign } from "@/lib/getDesign";
-
-const STORAGE_KEY = "openai_api_key";
 
 const TOKEN_LABELS: Record<keyof DesignTokens, string> = {
   primary: "Primary",
@@ -25,88 +23,6 @@ const TOKEN_ORDER: Array<keyof DesignTokens> = [
   "neutral",
 ];
 
-function SettingsModal({
-  onClose,
-  onSave,
-  initial,
-}: {
-  onClose: () => void;
-  onSave: (key: string) => void;
-  initial: string;
-}) {
-  const [value, setValue] = useState(initial);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    onSave(value.trim());
-    onClose();
-  }
-
-  function handleBackdrop(e: React.MouseEvent) {
-    if (e.target === e.currentTarget) onClose();
-  }
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
-      onClick={handleBackdrop}
-    >
-      <div className="w-full max-w-md rounded-xl bg-white shadow-xl p-6">
-        <div className="flex items-center justify-between mb-5">
-          <h2 className="text-base font-semibold text-gray-900">Settings</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
-            aria-label="Close"
-          >
-            &times;
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1.5">
-              OpenAI API Key
-            </label>
-            <input
-              ref={inputRef}
-              type="password"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder="sk-..."
-              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-            <p className="mt-1.5 text-xs text-gray-400">
-              Stored in browser localStorage. Never sent anywhere except directly to OpenAI via this app&apos;s server.
-            </p>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
-            >
-              Save
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
 const QUICK_SITES = [
   "https://www.spafinder.com/",
   "https://www.target.com/",
@@ -125,8 +41,6 @@ export default function Home() {
   const [tokens, setTokens] = useState<DesignTokens | null>(null);
   const [rawLlm, setRawLlm] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [apiKey, setApiKey] = useState("");
 
   const [heroLoading, setHeroLoading] = useState(false);
   const [heroDesign, setHeroDesign] = useState<HeroDesign | null>(null);
@@ -138,27 +52,8 @@ export default function Home() {
   const [bannerError, setBannerError] = useState<string | null>(null);
   const [bannerCopied, setBannerCopied] = useState(false);
 
-  useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY) ?? "";
-    setApiKey(stored);
-    if (!stored) setShowSettings(true);
-  }, []);
-
-  function handleSaveKey(key: string) {
-    setApiKey(key);
-    if (key) {
-      localStorage.setItem(STORAGE_KEY, key);
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }
-
   async function handleQuickSelect(siteUrl: string) {
     setUrl(siteUrl);
-    if (!apiKey) {
-      setShowSettings(true);
-      return;
-    }
     setLoading(true);
     setError(null);
     setTokens(null);
@@ -166,10 +61,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-OpenAI-Key": apiKey,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: siteUrl }),
       });
       const data = await res.json();
@@ -189,10 +81,6 @@ export default function Home() {
 
   async function handleBuildBannerFull() {
     if (!url.trim()) return;
-    if (!apiKey) {
-      setShowSettings(true);
-      return;
-    }
 
     // Step 1: Get Designs
     setHeroLoading(true);
@@ -206,10 +94,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/hero", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-OpenAI-Key": apiKey,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim() }),
       });
       const data = await res.json();
@@ -233,10 +118,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/banner", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-OpenAI-Key": apiKey,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ heroDesign: fetchedHeroDesign, designTokens: tokens }),
       });
       const data = await res.json();
@@ -255,10 +137,6 @@ export default function Home() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
-    if (!apiKey) {
-      setShowSettings(true);
-      return;
-    }
     setLoading(true);
     setError(null);
     setTokens(null);
@@ -266,10 +144,7 @@ export default function Home() {
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-OpenAI-Key": apiKey,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim() }),
       });
       const data = await res.json();
@@ -289,35 +164,10 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4">
-      {showSettings && (
-        <SettingsModal
-          onClose={() => setShowSettings(false)}
-          onSave={handleSaveKey}
-          initial={apiKey}
-        />
-      )}
-
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-start justify-between mb-1">
-          <h1 className="text-2xl font-semibold text-gray-900">Color Design Tokens</h1>
-          <button
-            onClick={() => setShowSettings(true)}
-            title="Settings"
-            className="mt-0.5 rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-            </svg>
-          </button>
-        </div>
+        <h1 className="text-2xl font-semibold text-gray-900 mb-1">Color Design Tokens</h1>
         <p className="text-sm text-gray-500 mb-8">
           Enter a website URL to extract its brand color tokens using AI.
-          {!apiKey && (
-            <span className="ml-1 text-amber-600">
-              — <button onClick={() => setShowSettings(true)} className="underline underline-offset-2 hover:text-amber-700">Add your OpenAI key</button> to get started.
-            </span>
-          )}
         </p>
 
         <form onSubmit={handleSubmit} className="flex gap-2 mb-10">
