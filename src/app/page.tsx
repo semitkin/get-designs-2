@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import type { DesignTokens } from "@/lib/schema";
+import type { HeroDesign } from "@/lib/heroSchema";
 
 const STORAGE_KEY = "openai_api_key";
 
@@ -126,6 +127,16 @@ export default function Home() {
   const [showSettings, setShowSettings] = useState(false);
   const [apiKey, setApiKey] = useState("");
 
+  const [heroLoading, setHeroLoading] = useState(false);
+  const [heroDesign, setHeroDesign] = useState<HeroDesign | null>(null);
+  const [heroRawLlm, setHeroRawLlm] = useState<string | null>(null);
+  const [heroError, setHeroError] = useState<string | null>(null);
+
+  const [bannerLoading, setBannerLoading] = useState(false);
+  const [bannerHtml, setBannerHtml] = useState<string | null>(null);
+  const [bannerError, setBannerError] = useState<string | null>(null);
+  const [bannerCopied, setBannerCopied] = useState(false);
+
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY) ?? "";
     setApiKey(stored);
@@ -172,6 +183,71 @@ export default function Home() {
       setError("Network error. Check your connection and try again.");
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleBuildBanner() {
+    if (!heroDesign) return;
+    if (!apiKey) {
+      setShowSettings(true);
+      return;
+    }
+    setBannerLoading(true);
+    setBannerError(null);
+    setBannerHtml(null);
+    try {
+      const res = await fetch("/api/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenAI-Key": apiKey,
+        },
+        body: JSON.stringify({ heroDesign, designTokens: tokens }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBannerError(data.error ?? "Something went wrong.");
+      } else {
+        setBannerHtml(data.html);
+      }
+    } catch {
+      setBannerError("Network error. Check your connection and try again.");
+    } finally {
+      setBannerLoading(false);
+    }
+  }
+
+  async function handleGetDesigns() {
+    if (!url.trim()) return;
+    if (!apiKey) {
+      setShowSettings(true);
+      return;
+    }
+    setHeroLoading(true);
+    setHeroError(null);
+    setHeroDesign(null);
+    setHeroRawLlm(null);
+    try {
+      const res = await fetch("/api/hero", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenAI-Key": apiKey,
+        },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setHeroError(data.error ?? "Something went wrong.");
+        if (data.raw) setHeroRawLlm(data.raw);
+      } else {
+        setHeroDesign(data.heroDesign);
+        setHeroRawLlm(data.raw ?? null);
+      }
+    } catch {
+      setHeroError("Network error. Check your connection and try again.");
+    } finally {
+      setHeroLoading(false);
     }
   }
 
@@ -259,6 +335,23 @@ export default function Home() {
           >
             {loading ? "Analyzing…" : "Generate"}
           </button>
+          <button
+            type="button"
+            onClick={handleGetDesigns}
+            disabled={heroLoading}
+            className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {heroLoading ? "Extracting…" : "Get Designs"}
+          </button>
+          <button
+            type="button"
+            onClick={handleBuildBanner}
+            disabled={!heroDesign || bannerLoading}
+            title={!heroDesign ? "Run 'Get Designs' first" : undefined}
+            className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            {bannerLoading ? "Building…" : "Build Banner"}
+          </button>
         </form>
 
         <div className="flex flex-wrap gap-2 -mt-6 mb-8">
@@ -345,6 +438,189 @@ export default function Home() {
               {rawLlm}
             </pre>
           </section>
+        )}
+
+        {heroError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mt-8">
+            {heroError}
+          </div>
+        )}
+
+        {heroLoading && (
+          <div className="text-sm text-gray-400 text-center py-12">
+            Extracting design elements…
+          </div>
+        )}
+
+        {heroDesign && (
+          <>
+            <section className="mt-10 mb-8">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                Hero Design
+              </h2>
+
+              <div className="flex flex-col gap-3">
+                {/* Logo */}
+                <div className="rounded-lg bg-white border border-gray-200 px-4 py-3">
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Logo</div>
+                  <p className="text-sm text-gray-900">{heroDesign.logo.description}</p>
+                  {heroDesign.logo.colors.length > 0 && (
+                    <div className="flex gap-2 mt-2">
+                      {heroDesign.logo.colors.map((c) => (
+                        <div key={c} className="flex items-center gap-1.5">
+                          <div className="h-4 w-4 rounded border border-black/10 flex-shrink-0" style={{ backgroundColor: c }} />
+                          <span className="font-mono text-xs text-gray-500">{c.toUpperCase()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Hero */}
+                <div className="rounded-lg bg-white border border-gray-200 px-4 py-3">
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Hero Banner</div>
+                  <div className="flex flex-col gap-1.5 text-sm">
+                    {heroDesign.hero.headline && (
+                      <div><span className="text-gray-400 text-xs">Headline: </span><span className="text-gray-900 font-medium">{heroDesign.hero.headline}</span></div>
+                    )}
+                    {heroDesign.hero.subheadline && (
+                      <div><span className="text-gray-400 text-xs">Subheadline: </span><span className="text-gray-700">{heroDesign.hero.subheadline}</span></div>
+                    )}
+                    {heroDesign.hero.ctaText && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-400 text-xs">CTA: </span>
+                        <span className="text-gray-900">{heroDesign.hero.ctaText}</span>
+                        <div className="h-4 w-4 rounded border border-black/10" style={{ backgroundColor: heroDesign.hero.ctaColor }} />
+                        <span className="font-mono text-xs text-gray-500">{heroDesign.hero.ctaColor.toUpperCase()}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-400 text-xs">Background: </span>
+                      <div className="h-4 w-4 rounded border border-black/10" style={{ backgroundColor: heroDesign.hero.backgroundColor }} />
+                      <span className="font-mono text-xs text-gray-500">{heroDesign.hero.backgroundColor.toUpperCase()}</span>
+                    </div>
+                    {heroDesign.hero.layout && (
+                      <div><span className="text-gray-400 text-xs">Layout: </span><span className="text-gray-700">{heroDesign.hero.layout}</span></div>
+                    )}
+                    {heroDesign.hero.imageDescription && heroDesign.hero.imageDescription !== "none" && (
+                      <div><span className="text-gray-400 text-xs">Image: </span><span className="text-gray-700">{heroDesign.hero.imageDescription}</span></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Taglines */}
+                {heroDesign.taglines.length > 0 && (
+                  <div className="rounded-lg bg-white border border-gray-200 px-4 py-3">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Taglines & Mottos</div>
+                    <ul className="flex flex-col gap-1">
+                      {heroDesign.taglines.map((t, i) => (
+                        <li key={i} className="text-sm text-gray-900 italic">&ldquo;{t}&rdquo;</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Typography + Visual Style */}
+                <div className="rounded-lg bg-white border border-gray-200 px-4 py-3">
+                  <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Typography & Style</div>
+                  <div className="flex flex-col gap-1 text-sm">
+                    {heroDesign.typography.primaryFont && (
+                      <div><span className="text-gray-400 text-xs">Font: </span><span className="text-gray-900">{heroDesign.typography.primaryFont}</span></div>
+                    )}
+                    {heroDesign.typography.headingStyle && (
+                      <div><span className="text-gray-400 text-xs">Heading style: </span><span className="text-gray-700">{heroDesign.typography.headingStyle}</span></div>
+                    )}
+                    {heroDesign.visualStyle && (
+                      <div><span className="text-gray-400 text-xs">Visual mood: </span><span className="text-gray-700">{heroDesign.visualStyle}</span></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dominant Colors */}
+                {heroDesign.dominantColors.length > 0 && (
+                  <div className="rounded-lg bg-white border border-gray-200 px-4 py-3">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Dominant Colors</div>
+                    <div className="flex gap-3">
+                      {heroDesign.dominantColors.map((c) => (
+                        <div key={c} className="flex items-center gap-1.5">
+                          <div className="h-8 w-8 rounded-md border border-black/10" style={{ backgroundColor: c }} />
+                          <span className="font-mono text-xs text-gray-600">{c.toUpperCase()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                Raw JSON (Hero Design)
+              </h2>
+              <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed">
+                {JSON.stringify(heroDesign, null, 2)}
+              </pre>
+            </section>
+          </>
+        )}
+
+        {heroRawLlm && (
+          <section className="mt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              LLM Raw Output (Hero Design)
+            </h2>
+            <pre className="rounded-lg bg-gray-100 border border-gray-200 text-gray-700 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+              {heroRawLlm}
+            </pre>
+          </section>
+        )}
+
+        {bannerError && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mt-8">
+            {bannerError}
+          </div>
+        )}
+
+        {bannerLoading && (
+          <div className="text-sm text-gray-400 text-center py-12">
+            Building banner…
+          </div>
+        )}
+
+        {bannerHtml && (
+          <>
+            <section className="mt-10 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400">
+                  Banner Preview
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(bannerHtml);
+                    setBannerCopied(true);
+                    setTimeout(() => setBannerCopied(false), 2000);
+                  }}
+                  className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-400 hover:text-gray-900 transition-colors"
+                >
+                  {bannerCopied ? "Copied!" : "Copy HTML"}
+                </button>
+              </div>
+              <div
+                className="rounded-lg overflow-hidden border border-gray-200 shadow-sm"
+                dangerouslySetInnerHTML={{ __html: bannerHtml }}
+              />
+            </section>
+
+            <section className="mt-6">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                Raw HTML
+              </h2>
+              <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap">
+                {bannerHtml}
+              </pre>
+            </section>
+          </>
         )}
       </div>
     </div>
