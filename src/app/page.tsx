@@ -116,7 +116,8 @@ const QUICK_SITES = [
   "https://www.usps.com/",
   "https://www.kroger.com/",
   "https://www.pricechopper.com/",
-  "https://www.panerabread.com/"
+  "https://www.panerabread.com/",
+  "https://www.barkershoes.com/"
 ];
 
 export default function Home() {
@@ -613,10 +614,52 @@ export default function Home() {
                   {bannerCopied ? "Copied!" : "Copy HTML"}
                 </button>
               </div>
-              <div
-                className="rounded-lg overflow-hidden border border-gray-200 shadow-sm"
-                dangerouslySetInnerHTML={{ __html: bannerHtml }}
-              />
+              <div className="flex flex-col gap-6">
+                {/* Desktop — renders at 1280px, scaled down to fit container */}
+                <div>
+                  <div className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+                    Desktop <span className="text-gray-300">1280px</span>
+                  </div>
+                  <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm" style={{ position: "relative" }}>
+                    <iframe
+                      srcDoc={bannerHtml}
+                      className="border-0 block"
+                      style={{ width: 1280, height: 300, transformOrigin: "top left" }}
+                      scrolling="no"
+                      onLoad={(e) => {
+                        const iframe = e.currentTarget;
+                        const contentHeight = iframe.contentDocument?.body.scrollHeight ?? 300;
+                        const scale = (iframe.parentElement?.offsetWidth ?? 640) / 1280;
+                        iframe.style.height = contentHeight + "px";
+                        iframe.style.transform = `scale(${scale})`;
+                        if (iframe.parentElement) {
+                          iframe.parentElement.style.height = contentHeight * scale + "px";
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+                {/* Mobile */}
+                <div>
+                  <div className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><rect x="5" y="2" width="14" height="20" rx="2"/><circle cx="12" cy="18" r="0.5" fill="currentColor"/></svg>
+                    Mobile <span className="text-gray-300">390px</span>
+                  </div>
+                  <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm w-fit">
+                    <iframe
+                      srcDoc={bannerHtml}
+                      className="border-0 block"
+                      style={{ width: 390, height: 300 }}
+                      scrolling="no"
+                      onLoad={(e) => {
+                        const iframe = e.currentTarget;
+                        iframe.style.height = iframe.contentDocument?.body.scrollHeight + "px";
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
             </section>
 
             <section className="mt-6">

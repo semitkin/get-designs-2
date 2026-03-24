@@ -57,13 +57,14 @@ Instructions:
 - The CTA button label should be action-oriented and brand-relevant (e.g. "Shop [BrandName] Gift Cards")
 
 FONT SIZING — CALCULATE BEFORE WRITING CSS:
-Before setting any font-size, count the characters in your headline and bullet text:
-- Headline total chars ≤ 30 → headline clamp: (20px, 2.8vw, 34px)
-- Headline total chars 31–50 → headline clamp: (17px, 2.2vw, 28px)
-- Headline total chars 51–70 → headline clamp: (14px, 1.8vw, 22px)
-- Headline total chars > 70 → headline clamp: (12px, 1.5vw, 18px)
-Scale bullet and CTA font sizes proportionally (bullets ~65% of headline max, CTA ~60%).
-The goal: ALL content (headline, 3 bullets, CTA button) must fit comfortably inside the 350px banner height with no overflow. If in doubt, go smaller.
+Before setting any font-size, count the total characters in your banner headline (including spaces and line breaks):
+- Headline total chars ≤ 30 → headline clamp: (22px, 3.0vw, 42px)
+- Headline total chars 31–50 → headline clamp: (20px, 2.6vw, 36px)
+- Headline total chars 51–70 → headline clamp: (16px, 2.0vw, 28px)
+- Headline total chars > 70 → headline clamp: (13px, 1.6vw, 22px)
+Bullets: clamp at ~70% of headline max (e.g. if headline max is 36px, bullets max ≈ 25px).
+CTA button: clamp at ~65% of headline max.
+The goal: ALL content (headline on 2–3 lines, 3 bullets, CTA button) must fit within the 350px banner height with no overflow. When in doubt, choose the next tier down.
 
 LAYOUT — FOLLOW EXACTLY (do not center the text):
 The banner uses a LEFT TEXT + RIGHT DECORATIVE BOX layout:
@@ -104,9 +105,21 @@ ISOLATION RULES (CRITICAL):
 
 SIZE — FOLLOW EXACTLY:
 - Desktop: width: 100%; height: 350px; overflow: hidden
-- Mobile (max-width: 767px): height: 220px — hide or shrink the right box
 - Inner content: display: flex; align-items: center; height: 100% — no top/bottom padding on .gc-hero
 - Font sizes: use clamp()
+
+MOBILE RESPONSIVENESS (CRITICAL):
+The @media block MUST be the very last rule inside the <style> tag — after ALL base styles.
+If it appears before any base rule (e.g. .gc-hero__left), that base rule will override it and mobile will break.
+
+Required @media block (place it last):
+@media (max-width: 767px) {
+  .gc-hero { height: 220px; }
+  .gc-hero__right { display: none; }
+  .gc-hero__left { width: 100%; padding-right: 7%; }
+}
+
+Do not omit any of these three declarations. Do not move this block above any base styles.
 
 OUTPUT FORMAT (STRICT):
 - Return ONLY the raw HTML — no markdown fences, no explanation
@@ -120,32 +133,30 @@ EXAMPLE STRUCTURE (illustrates the layout pattern — adapt everything to the br
     background: #5B2D8E; display: flex; align-items: center;
     font-family: 'Montserrat', sans-serif;
   }
-  @media (max-width: 767px) {
-    .gc-hero { height: 220px; }
-    .gc-hero__right { display: none; }
-  }
   .gc-hero__left {
     width: 55%; padding-left: 7%; display: flex; flex-direction: column;
     justify-content: center; gap: 12px; position: relative; z-index: 2;
   }
   .gc-hero__headline {
-    /* Example headline "Give the Gift They Actually Want" = 33 chars → use mid-range */
-    font-size: clamp(17px, 2.2vw, 28px); font-weight: 700;
+    /* Example headline "Give the Gift They Actually Want" = 33 chars → tier 31–50 → max 36px */
+    font-size: clamp(20px, 2.6vw, 36px); font-weight: 700;
     color: #fff; line-height: 1.2; margin: 0;
   }
   .gc-hero__bullets {
     list-style: none; margin: 0; padding: 0;
-    display: flex; flex-direction: column; gap: 4px;
+    display: flex; flex-direction: column; gap: 5px;
   }
   .gc-hero__bullets li {
-    font-size: clamp(11px, 1.0vw, 14px); color: rgba(255,255,255,0.9);
+    /* bullets ~70% of 36px max → ~25px max */
+    font-size: clamp(13px, 1.5vw, 22px); color: rgba(255,255,255,0.9);
   }
   .gc-hero__bullets li::before { content: "✓ "; font-weight: 700; }
   .gc-hero__btn {
     display: inline-block; margin-top: 4px;
     background: #FFD700; color: #2D0060;
-    padding: 10px 24px; border-radius: 50px;
-    font-size: clamp(11px, 1.0vw, 14px); font-weight: 700;
+    padding: 11px 26px; border-radius: 50px;
+    /* CTA ~65% of 36px max → ~23px max */
+    font-size: clamp(12px, 1.4vw, 22px); font-weight: 700;
     text-decoration: none; cursor: pointer; align-self: flex-start;
   }
   .gc-hero__right {
@@ -159,6 +170,12 @@ EXAMPLE STRUCTURE (illustrates the layout pattern — adapt everything to the br
     font-size: clamp(60px, 8vw, 110px); font-weight: 900;
     color: rgba(255,255,255,0.25); line-height: 1; text-align: center;
     letter-spacing: -2px;
+  }
+  /* @media MUST be last — after all base styles */
+  @media (max-width: 767px) {
+    .gc-hero { height: 220px; }
+    .gc-hero__right { display: none; }
+    .gc-hero__left { width: 100%; padding-right: 7%; }
   }
 </style>
 <div class="gc-hero">
