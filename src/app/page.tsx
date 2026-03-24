@@ -1,65 +1,352 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+import type { DesignTokens } from "@/lib/schema";
+
+const STORAGE_KEY = "openai_api_key";
+
+const TOKEN_LABELS: Record<keyof DesignTokens, string> = {
+  primary: "Primary",
+  secondary: "Secondary",
+  success: "Success",
+  error: "Error",
+  warning: "Warning",
+  info: "Info",
+  neutral: "Neutral",
+};
+
+const TOKEN_ORDER: Array<keyof DesignTokens> = [
+  "primary",
+  "secondary",
+  "success",
+  "error",
+  "warning",
+  "info",
+  "neutral",
+];
+
+function SettingsModal({
+  onClose,
+  onSave,
+  initial,
+}: {
+  onClose: () => void;
+  onSave: (key: string) => void;
+  initial: string;
+}) {
+  const [value, setValue] = useState(initial);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    onSave(value.trim());
+    onClose();
+  }
+
+  function handleBackdrop(e: React.MouseEvent) {
+    if (e.target === e.currentTarget) onClose();
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={handleBackdrop}
+    >
+      <div className="w-full max-w-md rounded-xl bg-white shadow-xl p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-base font-semibold text-gray-900">Settings</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors text-xl leading-none"
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">
+              OpenAI API Key
+            </label>
+            <input
+              ref={inputRef}
+              type="password"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="sk-..."
+              className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <p className="mt-1.5 text-xs text-gray-400">
+              Stored in browser localStorage. Never sent anywhere except directly to OpenAI via this app&apos;s server.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+            >
+              Save
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+const QUICK_SITES = [
+  "https://www.spafinder.com/",
+  "https://www.target.com/",
+  "https://www.americangreetings.com/",
+  "https://www.officedepot.com/",
+  "https://www.usps.com/",
+  "https://www.kroger.com/",
+  "https://www.pricechopper.com/",
+];
 
 export default function Home() {
+  const [url, setUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [tokens, setTokens] = useState<DesignTokens | null>(null);
+  const [rawLlm, setRawLlm] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [apiKey, setApiKey] = useState("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem(STORAGE_KEY) ?? "";
+    setApiKey(stored);
+    if (!stored) setShowSettings(true);
+  }, []);
+
+  function handleSaveKey(key: string) {
+    setApiKey(key);
+    if (key) {
+      localStorage.setItem(STORAGE_KEY, key);
+    } else {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }
+
+  async function handleQuickSelect(siteUrl: string) {
+    setUrl(siteUrl);
+    if (!apiKey) {
+      setShowSettings(true);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setTokens(null);
+    setRawLlm(null);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenAI-Key": apiKey,
+        },
+        body: JSON.stringify({ url: siteUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+        if (data.raw) setRawLlm(data.raw);
+      } else {
+        setTokens(data.designTokens);
+        setRawLlm(data.raw ?? null);
+      }
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!url.trim()) return;
+    if (!apiKey) {
+      setShowSettings(true);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setTokens(null);
+    setRawLlm(null);
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenAI-Key": apiKey,
+        },
+        body: JSON.stringify({ url: url.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? "Something went wrong.");
+        if (data.raw) setRawLlm(data.raw);
+      } else {
+        setTokens(data.designTokens);
+        setRawLlm(data.raw ?? null);
+      }
+    } catch {
+      setError("Network error. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <div className="min-h-screen bg-gray-50 py-12 px-4">
+      {showSettings && (
+        <SettingsModal
+          onClose={() => setShowSettings(false)}
+          onSave={handleSaveKey}
+          initial={apiKey}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+      )}
+
+      <div className="max-w-2xl mx-auto">
+        <div className="flex items-start justify-between mb-1">
+          <h1 className="text-2xl font-semibold text-gray-900">Color Design Tokens</h1>
+          <button
+            onClick={() => setShowSettings(true)}
+            title="Settings"
+            className="mt-0.5 rounded-lg p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition-colors"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </button>
         </div>
-      </main>
+        <p className="text-sm text-gray-500 mb-8">
+          Enter a website URL to extract its brand color tokens using AI.
+          {!apiKey && (
+            <span className="ml-1 text-amber-600">
+              — <button onClick={() => setShowSettings(true)} className="underline underline-offset-2 hover:text-amber-700">Add your OpenAI key</button> to get started.
+            </span>
+          )}
+        </p>
+
+        <form onSubmit={handleSubmit} className="flex gap-2 mb-10">
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://stripe.com"
+            required
+            className="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          >
+            {loading ? "Analyzing…" : "Generate"}
+          </button>
+        </form>
+
+        <div className="flex flex-wrap gap-2 -mt-6 mb-8">
+          {QUICK_SITES.map((site) => {
+            const label = new URL(site).hostname.replace(/^www\./, "");
+            return (
+              <button
+                key={site}
+                type="button"
+                onClick={() => handleQuickSelect(site)}
+                disabled={loading}
+                className="rounded-full border border-gray-300 bg-white px-3 py-1 text-xs text-gray-600 hover:border-blue-400 hover:text-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mb-8">
+            {error}
+          </div>
+        )}
+
+        {loading && (
+          <div className="text-sm text-gray-400 text-center py-12">
+            Analyzing brand colors…
+          </div>
+        )}
+
+        {tokens && (
+          <>
+            <section className="mb-8">
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                Color Tokens
+              </h2>
+              <div className="flex flex-col gap-2">
+                {TOKEN_ORDER.map((key) => {
+                  const token = tokens[key];
+                  return (
+                    <div
+                      key={key}
+                      className="flex items-center gap-4 rounded-lg bg-white border border-gray-200 px-4 py-3"
+                    >
+                      <div
+                        className="h-10 w-10 flex-shrink-0 rounded-md border border-black/10"
+                        style={{ backgroundColor: token.value }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide">
+                          {TOKEN_LABELS[key]}
+                        </div>
+                        <div className="text-sm font-medium text-gray-900 truncate">
+                          {token.label}
+                        </div>
+                      </div>
+                      <span className="font-mono text-sm text-gray-600 tabular-nums">
+                        {token.value.toUpperCase()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            <section>
+              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+                Raw JSON
+              </h2>
+              <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed">
+                {JSON.stringify(tokens, null, 2)}
+              </pre>
+            </section>
+          </>
+        )}
+
+        {rawLlm && (
+          <section className="mt-8">
+            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
+              LLM Raw Output
+            </h2>
+            <pre className="rounded-lg bg-gray-100 border border-gray-200 text-gray-700 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+              {rawLlm}
+            </pre>
+          </section>
+        )}
+      </div>
     </div>
   );
 }
