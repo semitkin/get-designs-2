@@ -321,7 +321,6 @@ function buildBannerPrompt(heroDesign: HeroDesign, designTokens: DesignTokens | 
   const ctaColor = heroDesign.hero.ctaColor || accentColor;
   const headline = heroDesign.hero.headline || "The Perfect Gift";
   const subheadline = heroDesign.hero.subheadline || "";
-  const ctaText = heroDesign.hero.ctaText || "Shop Gift Cards";
   const fontHint = heroDesign.typography.primaryFont || "system sans-serif";
   const headingStyle = heroDesign.typography.headingStyle || "bold clean";
   const mood = heroDesign.visualStyle || "modern premium";
@@ -344,27 +343,73 @@ EXACT COLORS TO USE:
   secondary: ${secondaryColor}
   dominant palette: ${dominantColors}
 
-COPY:
-  Headline (adapt for gift cards): "${headline}"
-  Subheadline: "${subheadline}"
-  Brand taglines:
+CONTENT BUDGET — FIXED SLOTS (do not add anything outside these):
+  1. Headline — 1-2 lines, 3 max, do not force with max-width.
+  2. Bullets — exactly 2-3 short lines (✓ marks), NO subheadline, NO extra paragraph
+  3. CTA button — one line
+  Do NOT include a subheadline or any additional text block. The subheadline reference below is only to inform brand voice — do not render it.
+
+COPY — THIS IS A GIFT CARD BANNER, NOT A BRAND AD:
+  Every line of copy must sell the idea of giving or receiving a ${brandName} gift card — not the brand's own products or services.
+  The headline, bullets, and CTA must answer: "Why should I buy a ${brandName} gift card?" — not "Why should I shop at ${brandName}?"
+  Good framing: gifting occasion, flexibility, instant delivery, making someone happy, the joy of choice.
+  Bad framing: promoting the brand's current offer, sale, or product range as if the reader is a direct shopper.
+
+  Headline — start from this brand line and rewrite it as a gift card pitch: "${headline}"
+  Brand voice / subheadline reference (do NOT render — use only to inform tone): "${subheadline}"
+  Brand taglines (use for tone and brand voice only — reframe any copy toward gift cards):
 ${taglines}
-  CTA button text: "${ctaText}" or "Shop ${brandName} Gift Cards"
-  Write 2-3 short benefit bullets with ✓ marks specific to this brand
+  CTA button text: "Shop ${brandName} Gift Cards" or a close variant — must mention gift cards explicitly
+  Bullets: exactly 2-3 short lines (✓), each max 8 words, each about buying/giving a gift card — not about the brand's products
+
+FONT SIZING — DO THIS CALCULATION BEFORE WRITING ANY CSS:
+Count the total characters in your banner headline (including spaces and line breaks):
+  ≤ 30 chars  → headline clamp(28px, 3.6vw, 54px) | bullets max ~38px | CTA max ~35px
+  31–50 chars → headline clamp(26px, 3.2vw, 48px) | bullets max ~34px | CTA max ~31px
+  51–70 chars → headline clamp(22px, 2.6vw, 40px) | bullets max ~28px | CTA max ~26px
+  > 70 chars  → headline clamp(19px, 2.2vw, 34px) | bullets max ~24px | CTA max ~22px
+Bullets: clamp at ~70% of headline max. CTA: clamp at ~65% of headline max.
+GOAL: all 3 slots (headline + bullets + CTA) must fit within 350px height with no overflow. When in doubt, pick the next tier down.
 
 LAYOUT:
-  Left ~55%: headline (2-3 bold lines), bullets, CTA button
-  Right ~40%: CSS-only decorative box (rounded rect, gift card shapes, or bold "GIFT" typography)
-  The right box sits ON TOP of the background (position: absolute), not beside it
+  Left column: minimum 65% width. Do NOT make it narrower — a narrow column breaks the headline across too many lines and wastes height. Give the text room to breathe horizontally.
+  Left column contains: headline (2-3 bold lines), bullets, CTA button — nothing else
+  Right column: CSS-only decorative box (rounded rect, gift card shapes, or bold "GIFT" typography), positioned absolute on the right side
+  The right box sits ON TOP of the background — it does NOT split or shrink the left column
+
+NO LOGO OR BRAND NAME IN THE BANNER:
+  Do NOT render a logo, logotype, wordmark, or brand name text anywhere in the banner.
+  The parent page already displays the brand — adding it here would duplicate it. Leave it out entirely.
+
+NO TRADEMARK SYMBOLS:
+  Do NOT include ®, ™, or © anywhere in the banner — not in headlines, bullets, CTA, or decorative elements.
+
+TEXT CONTRAST:
+  All text must have sufficient contrast against the banner background.
+  Do NOT place white or light-colored text on a light background (e.g. white on light grey, white on yellow, white on cream).
+  If the background is light, use a dark text color (e.g. near-black or the brand's dark tone). If the background is dark, use white or a light neutral.
+  Apply the same rule to bullet text and the CTA button label — check every text element against its direct background color.
 
 STRICT CSS RULES:
   .gc-hero { width:100%; height:350px; overflow:hidden; position:relative; background: ${bgColor}; display:flex; align-items:center; font-family:'${fontHint}',sans-serif; }
-  @media(max-width:767px) { .gc-hero{height:220px} .gc-hero__right{display:none} }
   ALL selectors must start with .gc-hero (BEM: .gc-hero__headline, .gc-hero__btn, .gc-hero__right, etc.)
+  Add a scoped reset at the top of the <style> block to protect against host-page styles leaking in:
+    .gc-hero, .gc-hero * { box-sizing: border-box; margin: 0; padding: 0; border: 0; font: inherit; vertical-align: baseline; list-style: none; text-decoration: none; }
+  Then re-declare every property you actually need on each element — never rely on browser or host-page defaults.
   NEVER use body, html, *, :root, or !important
   Use clamp() for all font-sizes
   The CTA <a> must have: onclick="window.scrollBy({top:300,behavior:'smooth'});return false;" and cursor:pointer
   NO @keyframes, NO animation, NO transition — completely static
+
+MOBILE — CRITICAL @media PLACEMENT RULE:
+The @media block MUST be the very last rule inside the <style> tag — after ALL base styles.
+If it appears before any base rule, the base rule will override it and mobile will break.
+Required block (place it last, do not omit any declaration):
+  @media (max-width: 767px) {
+    .gc-hero { height: 220px; }
+    .gc-hero__right { display: none; }
+    .gc-hero__left { width: 100%; padding-right: 7%; }
+  }
 
 OUTPUT:
   Return ONLY raw HTML starting with <style> then <div class="gc-hero">

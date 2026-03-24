@@ -79,6 +79,30 @@ export default function Home() {
     }
   }
 
+  async function handleGenerateBannerOnly() {
+    if (!heroDesign) return;
+    setBannerLoading(true);
+    setBannerError(null);
+    setBannerHtml(null);
+    try {
+      const res = await fetch("/api/banner", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ heroDesign, designTokens: tokens }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBannerError(data.error ?? "Something went wrong.");
+      } else {
+        setBannerHtml(data.html);
+      }
+    } catch {
+      setBannerError("Network error. Check your connection and try again.");
+    } finally {
+      setBannerLoading(false);
+    }
+  }
+
   async function handleBuildBannerFull() {
     if (!url.trim()) return;
 
@@ -432,6 +456,19 @@ export default function Home() {
           </section>
         )}
 
+        {heroDesign && (
+          <div className="mt-6">
+            <button
+              type="button"
+              onClick={handleGenerateBannerOnly}
+              disabled={bannerLoading}
+              className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              {bannerLoading ? "Building…" : "Generate Banner"}
+            </button>
+          </div>
+        )}
+
         {bannerError && (
           <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 mt-8">
             {bannerError}
@@ -464,27 +501,22 @@ export default function Home() {
                 </button>
               </div>
               <div className="flex flex-col gap-6">
-                {/* Desktop — renders at 1280px, scaled down to fit container */}
-                <div>
+                {/* Desktop — full-bleed 100% viewport width */}
+                <div style={{ width: "100vw", position: "relative", left: "50%", transform: "translateX(-50%)", paddingLeft: 16, paddingRight: 16 }}>
                   <div className="text-xs font-medium text-gray-400 mb-2 flex items-center gap-1.5">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
-                    Desktop <span className="text-gray-300">1280px</span>
+                    Desktop <span className="text-gray-300">100%</span>
                   </div>
-                  <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm" style={{ position: "relative" }}>
+                  <div className="rounded-lg overflow-hidden border border-gray-200 shadow-sm">
                     <iframe
                       srcDoc={bannerHtml}
-                      className="border-0 block"
-                      style={{ width: 1280, height: 300, transformOrigin: "top left" }}
+                      className="border-0 block w-full"
+                      style={{ height: 350 }}
                       scrolling="no"
                       onLoad={(e) => {
                         const iframe = e.currentTarget;
-                        const contentHeight = iframe.contentDocument?.body.scrollHeight ?? 300;
-                        const scale = (iframe.parentElement?.offsetWidth ?? 640) / 1280;
+                        const contentHeight = iframe.contentDocument?.body.scrollHeight ?? 350;
                         iframe.style.height = contentHeight + "px";
-                        iframe.style.transform = `scale(${scale})`;
-                        if (iframe.parentElement) {
-                          iframe.parentElement.style.height = contentHeight * scale + "px";
-                        }
                       }}
                     />
                   </div>
