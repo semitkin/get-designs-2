@@ -56,6 +56,15 @@ Instructions:
 - Write 2–3 short benefit bullets (✓) that feel specific to this brand and its customers (draw from the taglines, visual style, and brand voice above)
 - The CTA button label should be action-oriented and brand-relevant (e.g. "Shop [BrandName] Gift Cards")
 
+FONT SIZING — CALCULATE BEFORE WRITING CSS:
+Before setting any font-size, count the characters in your headline and bullet text:
+- Headline total chars ≤ 30 → headline clamp: (20px, 2.8vw, 34px)
+- Headline total chars 31–50 → headline clamp: (17px, 2.2vw, 28px)
+- Headline total chars 51–70 → headline clamp: (14px, 1.8vw, 22px)
+- Headline total chars > 70 → headline clamp: (12px, 1.5vw, 18px)
+Scale bullet and CTA font sizes proportionally (bullets ~65% of headline max, CTA ~60%).
+The goal: ALL content (headline, 3 bullets, CTA button) must fit comfortably inside the 350px banner height with no overflow. If in doubt, go smaller.
+
 LAYOUT — FOLLOW EXACTLY (do not center the text):
 The banner uses a LEFT TEXT + RIGHT DECORATIVE BOX layout:
 
@@ -120,22 +129,23 @@ EXAMPLE STRUCTURE (illustrates the layout pattern — adapt everything to the br
     justify-content: center; gap: 12px; position: relative; z-index: 2;
   }
   .gc-hero__headline {
-    font-size: clamp(22px, 2.8vw, 36px); font-weight: 700;
+    /* Example headline "Give the Gift They Actually Want" = 33 chars → use mid-range */
+    font-size: clamp(17px, 2.2vw, 28px); font-weight: 700;
     color: #fff; line-height: 1.2; margin: 0;
   }
   .gc-hero__bullets {
     list-style: none; margin: 0; padding: 0;
-    display: flex; flex-direction: column; gap: 6px;
+    display: flex; flex-direction: column; gap: 4px;
   }
   .gc-hero__bullets li {
-    font-size: clamp(13px, 1.2vw, 15px); color: rgba(255,255,255,0.9);
+    font-size: clamp(11px, 1.0vw, 14px); color: rgba(255,255,255,0.9);
   }
   .gc-hero__bullets li::before { content: "✓ "; font-weight: 700; }
   .gc-hero__btn {
     display: inline-block; margin-top: 4px;
     background: #FFD700; color: #2D0060;
-    padding: 12px 28px; border-radius: 50px;
-    font-size: clamp(13px, 1.2vw, 15px); font-weight: 700;
+    padding: 10px 24px; border-radius: 50px;
+    font-size: clamp(11px, 1.0vw, 14px); font-weight: 700;
     text-decoration: none; cursor: pointer; align-self: flex-start;
   }
   .gc-hero__right {

@@ -116,6 +116,7 @@ const QUICK_SITES = [
   "https://www.usps.com/",
   "https://www.kroger.com/",
   "https://www.pricechopper.com/",
+  "https://www.panerabread.com/"
 ];
 
 export default function Home() {
@@ -186,47 +187,22 @@ export default function Home() {
     }
   }
 
-  async function handleBuildBanner() {
-    if (!heroDesign) return;
-    if (!apiKey) {
-      setShowSettings(true);
-      return;
-    }
-    setBannerLoading(true);
-    setBannerError(null);
-    setBannerHtml(null);
-    try {
-      const res = await fetch("/api/banner", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-OpenAI-Key": apiKey,
-        },
-        body: JSON.stringify({ heroDesign, designTokens: tokens }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setBannerError(data.error ?? "Something went wrong.");
-      } else {
-        setBannerHtml(data.html);
-      }
-    } catch {
-      setBannerError("Network error. Check your connection and try again.");
-    } finally {
-      setBannerLoading(false);
-    }
-  }
-
-  async function handleGetDesigns() {
+  async function handleBuildBannerFull() {
     if (!url.trim()) return;
     if (!apiKey) {
       setShowSettings(true);
       return;
     }
+
+    // Step 1: Get Designs
     setHeroLoading(true);
     setHeroError(null);
     setHeroDesign(null);
     setHeroRawLlm(null);
+    setBannerError(null);
+    setBannerHtml(null);
+
+    let fetchedHeroDesign: HeroDesign | null = null;
     try {
       const res = await fetch("/api/hero", {
         method: "POST",
@@ -240,14 +216,39 @@ export default function Home() {
       if (!res.ok) {
         setHeroError(data.error ?? "Something went wrong.");
         if (data.raw) setHeroRawLlm(data.raw);
-      } else {
-        setHeroDesign(data.heroDesign);
-        setHeroRawLlm(data.raw ?? null);
+        return;
       }
+      fetchedHeroDesign = data.heroDesign;
+      setHeroDesign(data.heroDesign);
+      setHeroRawLlm(data.raw ?? null);
     } catch {
       setHeroError("Network error. Check your connection and try again.");
+      return;
     } finally {
       setHeroLoading(false);
+    }
+
+    // Step 2: Build Banner
+    setBannerLoading(true);
+    try {
+      const res = await fetch("/api/banner", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-OpenAI-Key": apiKey,
+        },
+        body: JSON.stringify({ heroDesign: fetchedHeroDesign, designTokens: tokens }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setBannerError(data.error ?? "Something went wrong.");
+      } else {
+        setBannerHtml(data.html);
+      }
+    } catch {
+      setBannerError("Network error. Check your connection and try again.");
+    } finally {
+      setBannerLoading(false);
     }
   }
 
@@ -333,24 +334,15 @@ export default function Home() {
             disabled={loading}
             className="rounded-lg bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? "Analyzing…" : "Generate"}
+            {loading ? "Analyzing…" : "Get Colors"}
           </button>
           <button
             type="button"
-            onClick={handleGetDesigns}
-            disabled={heroLoading}
-            className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-          >
-            {heroLoading ? "Extracting…" : "Get Designs"}
-          </button>
-          <button
-            type="button"
-            onClick={handleBuildBanner}
-            disabled={!heroDesign || bannerLoading}
-            title={!heroDesign ? "Run 'Get Designs' first" : undefined}
+            onClick={handleBuildBannerFull}
+            disabled={heroLoading || bannerLoading}
             className="rounded-lg bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            {bannerLoading ? "Building…" : "Build Banner"}
+            {heroLoading ? "Extracting…" : bannerLoading ? "Building…" : "Build Banner"}
           </button>
         </form>
 
@@ -419,24 +411,30 @@ export default function Home() {
             </section>
 
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
-                Raw JSON
-              </h2>
-              <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed">
-                {JSON.stringify(tokens, null, 2)}
-              </pre>
+              <details className="group">
+                <summary className="cursor-pointer list-none flex items-center gap-2 mb-4">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Raw JSON</span>
+                  <svg className="h-3 w-3 text-gray-400 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </summary>
+                <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed">
+                  {JSON.stringify(tokens, null, 2)}
+                </pre>
+              </details>
             </section>
           </>
         )}
 
         {rawLlm && (
           <section className="mt-8">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
-              LLM Raw Output
-            </h2>
-            <pre className="rounded-lg bg-gray-100 border border-gray-200 text-gray-700 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
-              {rawLlm}
-            </pre>
+            <details className="group">
+              <summary className="cursor-pointer list-none flex items-center gap-2 mb-4">
+                <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">LLM Raw Output</span>
+                <svg className="h-3 w-3 text-gray-400 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </summary>
+              <pre className="rounded-lg bg-gray-100 border border-gray-200 text-gray-700 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+                {rawLlm}
+              </pre>
+            </details>
           </section>
         )}
 
@@ -455,9 +453,11 @@ export default function Home() {
         {heroDesign && (
           <>
             <section className="mt-10 mb-8">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
-                Hero Design
-              </h2>
+              <details className="group">
+              <summary className="cursor-pointer list-none flex items-center gap-2 mb-4">
+                <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Hero Design</span>
+                <svg className="h-3 w-3 text-gray-400 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </summary>
 
               <div className="flex flex-col gap-3">
                 {/* Logo */}
@@ -551,27 +551,34 @@ export default function Home() {
                   </div>
                 )}
               </div>
+              </details>
             </section>
 
             <section>
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
-                Raw JSON (Hero Design)
-              </h2>
-              <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed">
-                {JSON.stringify(heroDesign, null, 2)}
-              </pre>
+              <details className="group">
+                <summary className="cursor-pointer list-none flex items-center gap-2 mb-4">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Raw JSON (Hero Design)</span>
+                  <svg className="h-3 w-3 text-gray-400 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </summary>
+                <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed">
+                  {JSON.stringify(heroDesign, null, 2)}
+                </pre>
+              </details>
             </section>
           </>
         )}
 
         {heroRawLlm && (
           <section className="mt-8">
-            <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
-              LLM Raw Output (Hero Design)
-            </h2>
-            <pre className="rounded-lg bg-gray-100 border border-gray-200 text-gray-700 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
-              {heroRawLlm}
-            </pre>
+            <details className="group">
+              <summary className="cursor-pointer list-none flex items-center gap-2 mb-4">
+                <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">LLM Raw Output (Hero Design)</span>
+                <svg className="h-3 w-3 text-gray-400 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+              </summary>
+              <pre className="rounded-lg bg-gray-100 border border-gray-200 text-gray-700 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap break-all">
+                {heroRawLlm}
+              </pre>
+            </details>
           </section>
         )}
 
@@ -613,12 +620,15 @@ export default function Home() {
             </section>
 
             <section className="mt-6">
-              <h2 className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4">
-                Raw HTML
-              </h2>
-              <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap">
-                {bannerHtml}
-              </pre>
+              <details className="group">
+                <summary className="cursor-pointer list-none flex items-center gap-2 mb-4">
+                  <span className="text-xs font-semibold uppercase tracking-widest text-gray-400">Raw HTML</span>
+                  <svg className="h-3 w-3 text-gray-400 transition-transform group-open:rotate-90" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+                </summary>
+                <pre className="rounded-lg bg-gray-900 text-gray-100 text-xs p-5 overflow-x-auto leading-relaxed whitespace-pre-wrap">
+                  {bannerHtml}
+                </pre>
+              </details>
             </section>
           </>
         )}
