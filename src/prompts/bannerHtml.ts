@@ -10,6 +10,15 @@ export function buildBannerPrompt(
     ? `\nCOLOR DESIGN TOKENS (semantic palette extracted from the brand):\n${JSON.stringify(designTokens, null, 2)}\n`
     : "";
 
+  // Pull key values out explicitly so they appear near their usage instructions
+  const brandTaglines = heroDesign.taglines.length > 0
+    ? heroDesign.taglines.map(t => `  - "${t}"`).join("\n")
+    : "  (none extracted)";
+  const heroHeadline = heroDesign.hero.headline || "(none extracted)";
+  const heroSubheadline = heroDesign.hero.subheadline || "(none extracted)";
+  const logoDescription = heroDesign.logo.description || "(none extracted)";
+  const visualStyle = heroDesign.visualStyle || "(none extracted)";
+
   return `You are a world-class front-end designer specializing in high-converting e-commerce hero banners.
 
 Your task: Generate a single self-contained HTML+CSS snippet for a gift card marketplace homepage hero banner. This banner will be injected into an existing website, so it must be fully isolated and must not break anything on the host page.
@@ -22,59 +31,138 @@ ${tokensSection}
 ---
 
 WHAT TO BUILD:
-A visually stunning, brand-faithful, full-width hero banner that:
-1. Evokes the brand's identity — colors, typography mood, visual style, taglines
-2. Sells gift cards — the copy should make visitors want to buy gift cards from/for this brand
-3. Has ONE call-to-action: an anchor link <a href="#products"> that scrolls down to the product grid below
-4. Contains NO other links, no external images, no iframes
+A visually striking, brand-faithful, full-width hero banner for a gift card marketplace homepage.
+- Evokes the brand's identity — colors, typography, visual style
+- Sells gift cards with compelling, brand-specific copy
+- Has ONE call-to-action button (see CTA BUTTON rules)
+- Contains NO other links, no external images, no iframes
 
-CREATIVE DIRECTION:
-- Study the brand's visual style and dominant colors — recreate that energy with CSS only
-- Use CSS gradients, geometric shapes, pseudo-elements (::before, ::after), clip-path, or SVG inline shapes for visual richness
-- Typography: use the brand's font if it's a Google Font (load it via <link>); otherwise use a harmonious system font stack
-- The headline and subheadline should be original, creative gift card selling copy inspired by the brand's actual taglines and voice
-- The CTA button should look exactly like the brand's buttons: shape, color, text style
-- Add motion: subtle CSS animations (fade-in, float, shimmer) to make it feel alive
-- Make it feel like it belongs on that brand's own website — not a generic template
+NO ANIMATIONS: Do NOT use @keyframes, animation, or transition properties anywhere. Completely static.
 
-ISOLATION RULES (CRITICAL — do not break the host page):
-- Wrap everything in a single root element: <div class="gc-hero"> or <section class="gc-hero">
-- Put ALL CSS inside a <style> tag at the very top of the snippet, before the HTML
-- Every CSS selector MUST start with .gc-hero (e.g. .gc-hero__headline, .gc-hero__btn)
-- NEVER use: body, html, *, :root, or any global reset
+COPY RULES:
+The following text was extracted directly from this brand's website — USE IT:
+
+  Brand logo / name clue: ${logoDescription}
+  Original hero headline: ${heroHeadline}
+  Original hero subheadline: ${heroSubheadline}
+  Brand taglines / mottos:
+${brandTaglines}
+  Visual style / mood: ${visualStyle}
+
+Instructions:
+- Determine the brand name from the logo description or headline above
+- The banner headline MUST reference this specific brand — include the brand name or a direct echo of their actual tagline/headline. Do not write generic copy.
+- Headline must be 2–3 lines, large, bold. It should feel like it was written by that brand's own marketing team — for gift cards.
+- Write 2–3 short benefit bullets (✓) that feel specific to this brand and its customers (draw from the taglines, visual style, and brand voice above)
+- The CTA button label should be action-oriented and brand-relevant (e.g. "Shop [BrandName] Gift Cards")
+
+LAYOUT — FOLLOW EXACTLY (do not center the text):
+The banner uses a LEFT TEXT + RIGHT DECORATIVE BOX layout:
+
+Left column (~55% width): contains the text group
+- Brand headline (2–3 lines, large bold)
+- 2–3 benefit bullets with ✓ checkmarks
+- CTA button
+
+Right column: a visually rich CONTAINED BOX positioned absolutely on the right side
+- This box floats ON TOP of the background — it does NOT split the background
+- Shape: rounded rectangle (border-radius: 16px) or overlapping circles
+- Fill: a lighter or contrasting brand color (not the same as the background)
+- Inside the box: creative CSS-only decoration — choose ONE of:
+  a) A large bold typographic element (e.g. "GIFT", a big "$", or a price like "from $10") in a contrasting color
+  b) 2–3 stacked/overlapping CSS rectangles styled like gift cards (rounded, border, slight rotation)
+  c) A large outlined circle with a brand-relevant symbol or number inside
+
+VISUAL STYLE:
+- Background: brand's primary/dominant color, can use a subtle radial or linear gradient
+- Typography: use the brand's font if it's a standard Google Font (load via <link>); otherwise use a clean system sans-serif
+- The CTA button must match the brand's button style: color = brand CTA color, border-radius matching brand style
+- Text on the left must have enough contrast against the background
+
+CTA BUTTON (CRITICAL — follow exactly):
+- Must be an <a> tag with this exact onclick:
+  onclick="window.scrollBy({top:300,behavior:'smooth'});return false;"
+- Do NOT use href="#products" or any other href
+- Add cursor: pointer to its CSS
+
+ISOLATION RULES (CRITICAL):
+- Single root element: <div class="gc-hero">
+- ALL CSS inside a <style> tag at the top of the snippet
+- Every selector MUST start with .gc-hero — e.g. .gc-hero__headline, .gc-hero__btn
+- NEVER use: body, html, *, :root, or any global selector
 - NEVER use !important
-- Use only relative/scoped selectors so nothing bleeds outside .gc-hero
-- Fonts: load Google Fonts via a <link rel="stylesheet"> tag embedded in the snippet (not in <head>)
+- Fonts: load via <link rel="stylesheet"> embedded in the snippet
 
-LAYOUT & RESPONSIVENESS:
-- Full-width (width: 100%), height: clamp(380px, 50vw, 640px)
-- Must look great at 320px wide and 1440px wide
-- Use flexbox or grid for layout
-- Use clamp() for font sizes and spacing
+SIZE — FOLLOW EXACTLY:
+- Desktop: width: 100%; height: 350px; overflow: hidden
+- Mobile (max-width: 767px): height: 220px — hide or shrink the right box
+- Inner content: display: flex; align-items: center; height: 100% — no top/bottom padding on .gc-hero
+- Font sizes: use clamp()
 
 OUTPUT FORMAT (STRICT):
-- Return ONLY the raw HTML snippet — no markdown code fences, no explanation, no prose
-- Start directly with the <link> tag (if loading a font) or the <style> tag
-- The snippet must be copy-paste ready to inject as an HTML block
+- Return ONLY the raw HTML — no markdown fences, no explanation
+- Start with <link> (if font) or <style>
 
-EXAMPLE STRUCTURE (adapt creatively, don't copy literally):
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=...">
+EXAMPLE STRUCTURE (illustrates the layout pattern — adapt everything to the brand):
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@700;400&display=swap">
 <style>
-  .gc-hero { ... }
-  .gc-hero__inner { ... }
-  .gc-hero__headline { ... }
-  .gc-hero__sub { ... }
-  .gc-hero__btn { ... }
-  /* decorative elements */
-  .gc-hero__deco { ... }
-  .gc-hero__deco::before { ... }
+  .gc-hero {
+    width: 100%; height: 350px; overflow: hidden; position: relative;
+    background: #5B2D8E; display: flex; align-items: center;
+    font-family: 'Montserrat', sans-serif;
+  }
+  @media (max-width: 767px) {
+    .gc-hero { height: 220px; }
+    .gc-hero__right { display: none; }
+  }
+  .gc-hero__left {
+    width: 55%; padding-left: 7%; display: flex; flex-direction: column;
+    justify-content: center; gap: 12px; position: relative; z-index: 2;
+  }
+  .gc-hero__headline {
+    font-size: clamp(22px, 2.8vw, 36px); font-weight: 700;
+    color: #fff; line-height: 1.2; margin: 0;
+  }
+  .gc-hero__bullets {
+    list-style: none; margin: 0; padding: 0;
+    display: flex; flex-direction: column; gap: 6px;
+  }
+  .gc-hero__bullets li {
+    font-size: clamp(13px, 1.2vw, 15px); color: rgba(255,255,255,0.9);
+  }
+  .gc-hero__bullets li::before { content: "✓ "; font-weight: 700; }
+  .gc-hero__btn {
+    display: inline-block; margin-top: 4px;
+    background: #FFD700; color: #2D0060;
+    padding: 12px 28px; border-radius: 50px;
+    font-size: clamp(13px, 1.2vw, 15px); font-weight: 700;
+    text-decoration: none; cursor: pointer; align-self: flex-start;
+  }
+  .gc-hero__right {
+    position: absolute; right: 4%; top: 50%; transform: translateY(-50%);
+    width: 34%; height: 82%; border-radius: 16px;
+    background: rgba(255,255,255,0.15);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+  }
+  .gc-hero__right-inner {
+    font-size: clamp(60px, 8vw, 110px); font-weight: 900;
+    color: rgba(255,255,255,0.25); line-height: 1; text-align: center;
+    letter-spacing: -2px;
+  }
 </style>
 <div class="gc-hero">
-  <div class="gc-hero__inner">
-    <div class="gc-hero__deco"></div>
-    <h2 class="gc-hero__headline">...</h2>
-    <p class="gc-hero__sub">...</p>
-    <a href="#products" class="gc-hero__btn">Shop Gift Cards</a>
+  <div class="gc-hero__left">
+    <h2 class="gc-hero__headline">Give the Gift<br>They Actually Want</h2>
+    <ul class="gc-hero__bullets">
+      <li>Delivered instantly by email or print</li>
+      <li>Choose any amount, any occasion</li>
+      <li>Redeemable in-store and online</li>
+    </ul>
+    <a class="gc-hero__btn" onclick="window.scrollBy({top:300,behavior:'smooth'});return false;">Shop Gift Cards</a>
+  </div>
+  <div class="gc-hero__right">
+    <div class="gc-hero__right-inner">GIFT</div>
   </div>
 </div>`;
 }
